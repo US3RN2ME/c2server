@@ -21,8 +21,8 @@ namespace c2server {
 
    RouteEndpoint::RouteEndpoint(HttpMethod method, std::string target, HttpHandler handler)
        : method_{std::move(method)}
-      , target_{std::move(target)}
-      , handler_{std::move(handler)} {
+       , target_{std::move(target)}
+       , handler_{std::move(handler)} {
       if (!handler_) {
          throw EndpointError{"route handler must not be empty"};
       }

@@ -10,24 +10,18 @@ module;
 
 module c2server.server;
 
+import :detail;
 import c2server.error;
 import c2server.http;
 import c2server.logger;
 import std;
 
-#include "server_detail.hpp"
-
 namespace c2server::detail {
 
-   net::awaitable<void> listen(std::shared_ptr<tcp::acceptor> acceptor,
-                               std::shared_ptr<ssl::context> sslContext,
-                               bool allowPlainHttp,
-                               HttpHandler handler,
-                               std::uint64_t requestBodyLimitBytes,
+   net::awaitable<void> listen(std::shared_ptr<tcp::acceptor> acceptor, std::shared_ptr<ssl::context> sslContext,
+                               bool allowPlainHttp, HttpHandler handler, std::uint64_t requestBodyLimitBytes,
                                std::uint64_t requestTimeoutSeconds) {
-      log::info("Listening on {}:{}",
-                acceptor->local_endpoint().address().to_string(),
-                acceptor->local_endpoint().port());
+      log::info("Listening on {}:{}", acceptor->local_endpoint().address().to_string(), acceptor->local_endpoint().port());
 
       try {
          auto executor = co_await net::this_coro::executor;
@@ -36,19 +30,12 @@ namespace c2server::detail {
             auto socket = co_await acceptor->async_accept(socketExecutor, net::use_awaitable);
             if (sslContext) {
                net::co_spawn(std::move(socketExecutor),
-                             runFlexSession(std::move(socket),
-                                            sslContext,
-                                            allowPlainHttp,
-                                            handler,
-                                            requestBodyLimitBytes,
+                             runFlexSession(std::move(socket), sslContext, allowPlainHttp, handler, requestBodyLimitBytes,
                                             requestTimeoutSeconds),
                              net::detached);
             } else {
                net::co_spawn(std::move(socketExecutor),
-                             runPlainSession(std::move(socket),
-                                             handler,
-                                             requestBodyLimitBytes,
-                                             requestTimeoutSeconds),
+                             runPlainSession(std::move(socket), handler, requestBodyLimitBytes, requestTimeoutSeconds),
                              net::detached);
             }
          }

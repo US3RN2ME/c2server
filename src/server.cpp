@@ -1,5 +1,6 @@
 module c2server.server;
 
+import :detail;
 import c2server.error;
 import std;
 

@@ -4,7 +4,7 @@
     "port": 8080,
     "worker_threads": 0,
     "request_body_limit_bytes": 1048576,
-    "request_timeout_seconds": 30,
+    "request_timeout_seconds": 10,
     "ssl": {
       "enabled": false,
       "allow_plain_http": true,

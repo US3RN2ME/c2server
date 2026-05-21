@@ -18,28 +18,24 @@ namespace {
                                                 "Hello from remote payload!\n";
    constexpr std::string_view kDefaultSubmissionPath = "submissions.log";
 
-   c2server::HttpResponse ok(std::string body, std::string contentType = "text/plain") {
-      return {200, std::move(body), std::move(contentType)};
-   }
-
    void addDefaultEndpoints(c2server::Router& router, std::shared_ptr<c2server::PayloadStoreBase> payload,
                             SubmissionSink submissionSink) {
       router.get("/payload", [payload](const c2server::HttpRequest& req) {
          c2server::log::info("Payload requested by {}", req.remoteIp);
-         return ok(payload->get());
+         return c2server::ok(payload->get());
       });
 
       router.post("/submit", [submissionSink = std::move(submissionSink)](const c2server::HttpRequest& req) {
          c2server::log::info("Submission from {}: {} bytes", req.remoteIp, req.body.size());
          c2server::log::debug("Submission data:\n{}", req.body);
          submissionSink(req.remoteIp, req.body);
-         return ok("ok");
+         return c2server::jsonOk({{"status", "ok"}});
       });
 
       router.post("/set_payload", [payload = std::move(payload)](const c2server::HttpRequest& req) {
          payload->set(req.body);
          c2server::log::info("Payload updated by {}", req.remoteIp);
-         return ok("payload updated");
+         return c2server::jsonOk({{"status", "payload updated"}});
       });
    }
 

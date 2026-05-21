@@ -10,17 +10,15 @@ module;
 
 module c2server.server;
 
+import :detail;
 import c2server.error;
 import c2server.http;
 import c2server.logger;
 import std;
 
-#include "server_detail.hpp"
-
 namespace c2server::detail {
 
-   ShutdownSignalHandler::ShutdownSignalHandler(net::io_context& ioc,
-                                                c2server::ShutdownCallback callback,
+   ShutdownSignalHandler::ShutdownSignalHandler(net::io_context& ioc, c2server::ShutdownCallback callback,
                                                 c2server::ShutdownCallback repeatedCallback)
        : signals_{ioc}
        , callback_{std::move(callback)}
