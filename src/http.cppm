@@ -29,6 +29,12 @@ export namespace c2server {
       std::string contentType = "text/plain";
    };
 
+   using JsonObject = std::unordered_map<std::string, std::string>;
+
+   [[nodiscard]] HttpResponse ok(std::string body, std::string contentType = "text/plain");
+   [[nodiscard]] HttpResponse json(JsonObject body, unsigned status = 200);
+   [[nodiscard]] HttpResponse jsonOk(JsonObject body);
+
    using HttpHandler = std::function<HttpResponse(const HttpRequest&)>;
 
 } // namespace c2server

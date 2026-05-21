@@ -7,11 +7,10 @@ module;
 
 module c2server.server;
 
+import :detail;
 import c2server.error;
 import c2server.http;
 import std;
-
-#include "server_detail.hpp"
 
 namespace c2server::detail {
 

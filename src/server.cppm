@@ -22,7 +22,3 @@ export namespace c2server {
    };
 
 } // namespace c2server
-
-namespace c2server::detail {
-   void runServer(const ServerSettings& settings, std::shared_ptr<Router> router, ShutdownCallback shutdownCallback);
-} // namespace c2server::detail

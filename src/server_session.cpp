@@ -6,15 +6,15 @@ module;
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
+#include <boost/system/system_error.hpp>
 
 module c2server.server;
 
+import :detail;
 import c2server.error;
 import c2server.http;
 import c2server.logger;
 import std;
-
-#include "server_detail.hpp"
 
 namespace c2server::detail {
 
@@ -76,13 +76,28 @@ namespace c2server::detail {
          }
       }
 
+      bool isExpectedSessionClose(const boost::system::error_code& ec) {
+         return ec == beast::error::timeout || ec == http::error::end_of_stream || ec == net::error::operation_aborted ||
+                ec == net::error::eof || ec == net::error::connection_reset || ec == ssl::error::stream_truncated;
+      }
+
+      void logSessionSystemError(std::string_view ip, const boost::system::error_code& ec) {
+         if (ec == beast::error::timeout) {
+            log::debug("Session [{}] timed out", ip);
+            return;
+         }
+
+         if (isExpectedSessionClose(ec)) {
+            log::debug("Session [{}] closed: {}", ip, ec.message());
+            return;
+         }
+
+         log::error("Session [{}] failed: {} [{}:{}]", ip, ec.message(), ec.category().name(), ec.value());
+      }
+
       template <class Stream>
-      net::awaitable<void> runHttpSession(Stream& stream,
-                                          beast::flat_buffer& buf,
-                                          std::string ip,
-                                          HttpHandler handler,
-                                          std::uint64_t requestBodyLimitBytes,
-                                          std::uint64_t requestTimeoutSeconds) {
+      net::awaitable<void> runHttpSession(Stream& stream, beast::flat_buffer& buf, std::string ip, HttpHandler handler,
+                                          std::uint64_t requestBodyLimitBytes, std::uint64_t requestTimeoutSeconds) {
          try {
             http::request_parser<http::string_body> parser;
             parser.body_limit(requestBodyLimitBytes);
@@ -94,6 +109,8 @@ namespace c2server::detail {
             auto res = safeHandle(handler, domainReq);
             beast::get_lowest_layer(stream).expires_after(std::chrono::seconds{requestTimeoutSeconds});
             co_await http::async_write(stream, toBeast(res, req.version()), net::use_awaitable);
+         } catch (const boost::system::system_error& e) {
+            logSessionSystemError(ip, e.code());
          } catch (const std::exception& e) {
             log::error("Session [{}]: {}", ip, e.what());
          }
@@ -114,9 +131,7 @@ namespace c2server::detail {
 
    } // namespace
 
-   net::awaitable<void> runPlainSession(tcp::socket socket,
-                                        HttpHandler handler,
-                                        std::uint64_t requestBodyLimitBytes,
+   net::awaitable<void> runPlainSession(tcp::socket socket, HttpHandler handler, std::uint64_t requestBodyLimitBytes,
                                         std::uint64_t requestTimeoutSeconds) {
       beast::tcp_stream stream{std::move(socket)};
       const auto ip = stream.socket().remote_endpoint().address().to_string();
@@ -127,11 +142,8 @@ namespace c2server::detail {
       shutdownPlain(stream);
    }
 
-   net::awaitable<void> runFlexSession(tcp::socket socket,
-                                       std::shared_ptr<ssl::context> sslContext,
-                                       bool allowPlainHttp,
-                                       HttpHandler handler,
-                                       std::uint64_t requestBodyLimitBytes,
+   net::awaitable<void> runFlexSession(tcp::socket socket, std::shared_ptr<ssl::context> sslContext, bool allowPlainHttp,
+                                       HttpHandler handler, std::uint64_t requestBodyLimitBytes,
                                        std::uint64_t requestTimeoutSeconds) {
       beast::tcp_stream stream{std::move(socket)};
       const auto ip = stream.socket().remote_endpoint().address().to_string();
@@ -160,6 +172,8 @@ namespace c2server::detail {
          log::debug("Plain HTTP connection from {}", ip);
          co_await runHttpSession(stream, buf, ip, handler, requestBodyLimitBytes, requestTimeoutSeconds);
          shutdownPlain(stream);
+      } catch (const boost::system::system_error& e) {
+         logSessionSystemError(ip, e.code());
       } catch (const std::exception& e) {
          log::error("Session [{}]: {}", ip, e.what());
       }

@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <boost/asio.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -6,24 +6,26 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
-#include <boost/system/error_code.hpp>
 
-#include <atomic>
-#include <cstdint>
-#include <functional>
-#include <memory>
+export module c2server.server:detail;
 
-namespace c2server::detail {
+import c2server.config;
+import c2server.http;
+import c2server.router;
+import c2server.server;
+import std;
+
+export namespace c2server::detail {
 
    namespace net = boost::asio;
    namespace beast = boost::beast;
    namespace http = beast::http;
    namespace ssl = net::ssl;
    using tcp = net::ip::tcp;
+
    class ShutdownSignalHandler {
    public:
-      ShutdownSignalHandler(net::io_context& ioc,
-                            c2server::ShutdownCallback callback,
+      ShutdownSignalHandler(net::io_context& ioc, c2server::ShutdownCallback callback,
                             c2server::ShutdownCallback repeatedCallback);
 
       ShutdownSignalHandler(const ShutdownSignalHandler&) = delete;
@@ -46,27 +48,17 @@ namespace c2server::detail {
 
    ssl::context makeSslContext(const SslSettings& settings);
 
-   net::awaitable<void> runPlainSession(tcp::socket socket,
-                                        HttpHandler handler,
-                                        std::uint64_t requestBodyLimitBytes,
+   net::awaitable<void> runPlainSession(tcp::socket socket, HttpHandler handler, std::uint64_t requestBodyLimitBytes,
                                         std::uint64_t requestTimeoutSeconds);
 
-   net::awaitable<void> runFlexSession(tcp::socket socket,
-                                       std::shared_ptr<ssl::context> sslContext,
-                                       bool allowPlainHttp,
-                                       HttpHandler handler,
-                                       std::uint64_t requestBodyLimitBytes,
+   net::awaitable<void> runFlexSession(tcp::socket socket, std::shared_ptr<ssl::context> sslContext, bool allowPlainHttp,
+                                       HttpHandler handler, std::uint64_t requestBodyLimitBytes,
                                        std::uint64_t requestTimeoutSeconds);
 
-   net::awaitable<void> listen(std::shared_ptr<tcp::acceptor> acceptor,
-                               std::shared_ptr<ssl::context> sslContext,
-                               bool allowPlainHttp,
-                               HttpHandler handler,
-                               std::uint64_t requestBodyLimitBytes,
+   net::awaitable<void> listen(std::shared_ptr<tcp::acceptor> acceptor, std::shared_ptr<ssl::context> sslContext,
+                               bool allowPlainHttp, HttpHandler handler, std::uint64_t requestBodyLimitBytes,
                                std::uint64_t requestTimeoutSeconds);
 
-   void runServer(const ServerSettings& settings,
-                  std::shared_ptr<Router> router,
-                  c2server::ShutdownCallback shutdownCallback);
+   void runServer(const ServerSettings& settings, std::shared_ptr<Router> router, c2server::ShutdownCallback shutdownCallback);
 
 } // namespace c2server::detail

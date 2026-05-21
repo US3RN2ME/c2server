@@ -12,15 +12,35 @@ export namespace c2server {
           : std::runtime_error{std::format(fmt, std::forward<Args>(args)...)} {}
    };
 
-   struct ConfigError : Error { using Error::Error; };
-   struct HttpError : Error { using Error::Error; };
-   struct EndpointError : Error { using Error::Error; };
-   struct RouterError : Error { using Error::Error; };
-   struct ServerError : Error { using Error::Error; };
-   struct SignalHandlerError : Error { using Error::Error; };
-   struct AcceptorError : Error { using Error::Error; };
-   struct SessionError : Error { using Error::Error; };
-   struct LoggerError : Error { using Error::Error; };
-   struct PayloadError : Error { using Error::Error; };
+   struct ConfigError : Error {
+      using Error::Error;
+   };
+   struct HttpError : Error {
+      using Error::Error;
+   };
+   struct EndpointError : Error {
+      using Error::Error;
+   };
+   struct RouterError : Error {
+      using Error::Error;
+   };
+   struct ServerError : Error {
+      using Error::Error;
+   };
+   struct SignalHandlerError : Error {
+      using Error::Error;
+   };
+   struct AcceptorError : Error {
+      using Error::Error;
+   };
+   struct SessionError : Error {
+      using Error::Error;
+   };
+   struct LoggerError : Error {
+      using Error::Error;
+   };
+   struct PayloadError : Error {
+      using Error::Error;
+   };
 
 } // namespace c2server
