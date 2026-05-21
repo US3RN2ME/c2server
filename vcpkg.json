@@ -1,0 +1,10 @@
+{
+  "name": "c2server",
+  "version": "0.0.1",
+  "description": "Server application",
+  "license": "MIT",
+  "dependencies": [
+    "boost-beast",
+    "spdlog"
+  ]
+}
