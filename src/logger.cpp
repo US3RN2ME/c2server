@@ -5,6 +5,7 @@ module;
 
 module c2server.logger;
 
+import c2server.error;
 import std;
 
 namespace c2server {
@@ -30,18 +31,22 @@ namespace c2server {
       }
 
       ShutdownGuard init(std::string_view logFile) {
-         std::vector<spdlog::sink_ptr> sinks;
-         sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+         try {
+            std::vector<spdlog::sink_ptr> sinks;
+            sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
 
-         if (!logFile.empty())
-            sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string{logFile}));
+            if (!logFile.empty())
+               sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string{logFile}));
 
-         auto logger = std::make_shared<spdlog::logger>("c2server", sinks.begin(), sinks.end());
-         spdlog::set_default_logger(logger);
-         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
-         spdlog::set_level(spdlog::level::debug);
-         spdlog::flush_on(spdlog::level::info);
-         return {};
+            auto logger = std::make_shared<spdlog::logger>("c2server", sinks.begin(), sinks.end());
+            spdlog::set_default_logger(logger);
+            spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
+            spdlog::set_level(spdlog::level::debug);
+            spdlog::flush_on(spdlog::level::info);
+            return {};
+         } catch (const std::exception& e) {
+            throw LoggerError{"failed to initialize logger: {}", e.what()};
+         }
       }
 
       void debug(std::string_view msg) {

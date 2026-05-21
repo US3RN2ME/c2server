@@ -1,6 +1,5 @@
 export module c2server.payload;
 
-import c2server.config;
 import std;
 
 export namespace c2server {
@@ -12,7 +11,7 @@ export namespace c2server {
    };
 
    struct PayloadStore final : PayloadStoreBase {
-      explicit PayloadStore(InitialPayload init);
+      explicit PayloadStore(std::string value);
 
       std::string get() const override;
       void set(std::string_view) override;

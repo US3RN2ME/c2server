@@ -1,5 +1,6 @@
 export module c2server.router;
 
+import c2server.error;
 import c2server.http;
 import std;
 
@@ -38,10 +39,15 @@ export namespace c2server {
       Router& patch(std::string target, HttpHandler handler);
       Router& head(std::string target, HttpHandler handler);
       Router& options(std::string target, HttpHandler handler);
+      Router& freeze();
+      [[nodiscard]] bool frozen() const;
       HttpResponse handle(const HttpRequest& req) const;
 
    private:
+      void ensureMutable() const;
+
       std::vector<EndpointPtr> endpoints_;
+      bool frozen_ = false;
    };
 
 } // namespace c2server

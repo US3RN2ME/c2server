@@ -2,8 +2,8 @@ module c2server.payload;
 
 namespace c2server {
 
-   PayloadStore::PayloadStore(InitialPayload init)
-       : value_{std::move(init.value)} {}
+   PayloadStore::PayloadStore(std::string value)
+       : value_{std::move(value)} {}
 
    std::string PayloadStore::get() const {
       std::lock_guard lock{mtx_};

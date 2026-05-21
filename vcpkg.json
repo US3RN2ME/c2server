@@ -5,6 +5,8 @@
   "license": "MIT",
   "dependencies": [
     "boost-beast",
+    "nlohmann-json",
+    "openssl",
     "spdlog"
   ]
 }
