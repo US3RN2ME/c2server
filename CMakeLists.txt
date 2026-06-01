@@ -11,6 +11,7 @@ endif()
 option(C2SERVER_BUILD_TESTS "Build tests" ON)
 option(C2SERVER_BUILD_APP "Build the c2server executable" ON)
 option(C2SERVER_BUILD_DOCS "Build API documentation" ON)
+option(C2SERVER_INSTALL "Install c2server" ON)
 
 if(C2SERVER_BUILD_TESTS)
    list(APPEND VCPKG_MANIFEST_FEATURES "tests")
@@ -20,6 +21,9 @@ project(
    c2server
    VERSION 0.0.1
    LANGUAGES CXX)
+
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,8 +41,45 @@ include(cmake/PlatformOptions.cmake)
 
 add_subdirectory(src)
 
+if(C2SERVER_INSTALL)
+   set(C2SERVER_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/c2server")
+
+   configure_package_config_file(
+      "${CMAKE_SOURCE_DIR}/cmake/c2serverConfig.cmake.in" "${PROJECT_BINARY_DIR}/c2serverConfig.cmake"
+      INSTALL_DESTINATION "${C2SERVER_INSTALL_CMAKEDIR}")
+
+   write_basic_package_version_file(
+      "${PROJECT_BINARY_DIR}/c2serverConfigVersion.cmake"
+      VERSION "${PROJECT_VERSION}"
+      COMPATIBILITY SameMajorVersion)
+
+   install(
+      TARGETS c2server_core c2server_platform_options
+      EXPORT c2serverTargets
+      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+      LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+              FILE_SET cxx_modules
+              DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/c2server")
+
+   install(
+      EXPORT c2serverTargets
+      FILE c2serverTargets.cmake
+      NAMESPACE c2server::
+      DESTINATION "${C2SERVER_INSTALL_CMAKEDIR}")
+
+   install(FILES "${PROJECT_BINARY_DIR}/c2serverConfig.cmake" "${PROJECT_BINARY_DIR}/c2serverConfigVersion.cmake"
+           DESTINATION "${C2SERVER_INSTALL_CMAKEDIR}")
+
+   install(FILES LICENSE README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/c2server")
+   install(FILES config/config.json DESTINATION "${CMAKE_INSTALL_DATADIR}/c2server/examples")
+endif()
+
 if(C2SERVER_BUILD_APP)
    add_subdirectory(app)
+   if(C2SERVER_INSTALL)
+      install(TARGETS c2server RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+   endif()
 endif()
 
 if(C2SERVER_BUILD_TESTS)
@@ -59,6 +100,13 @@ if(C2SERVER_BUILD_DOCS)
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
          COMMENT "Generating API documentation with Doxygen"
          VERBATIM)
+
+      if(C2SERVER_INSTALL)
+         install(
+            DIRECTORY "${DOXYGEN_OUTPUT_DIR}/html/"
+            DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+            OPTIONAL)
+      endif()
    else()
       message(STATUS "Doxygen not found; docs target disabled")
    endif()

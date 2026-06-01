@@ -59,6 +59,7 @@
  * | `c2server.payload` | Thread-safe in-memory payload storage. |
  * | `c2server.router` | Endpoint registration and middleware dispatch. |
  * | `c2server.server` | HTTP and HTTPS server lifecycle. |
+ * | `c2server.version` | Compile-time project version constants. |
  *
  * @section routing Routing
  *

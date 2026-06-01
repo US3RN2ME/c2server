@@ -1,65 +1,122 @@
 # c2server
 
-`c2server` is a small C++23 REST server library built on Boost.Beast and Boost.Asio. It provides a reusable
-`c2server_core` library with routing, JSON-backed server configuration, structured runtime errors, graceful shutdown
-handling, optional TLS, and convenience HTTP response helpers.
+C++23 HTTP and HTTPS server library built on Boost.Asio and Boost.Beast.
 
-The project builds the reusable `c2server_core` library and, by default, the `c2server` executable.
+Features:
 
-The public API is exposed through C++ modules. Internally, the server uses Boost.Asio awaitables and C++ coroutines for
-the accept loop, TLS detection, request reads, response writes, and graceful shutdown flow.
+- route handlers and Express-style middleware
+- CORS, request IDs, security headers, access logs, and rate limiting
+- JSON configuration
+- graceful shutdown
+- synchronous HTTP and HTTPS client
+- public C++ modules
 
 ## Requirements
 
-Common requirements:
-
 - CMake 3.30 or newer
-- A C++23 compiler with C++ module support
-- vcpkg manifest mode, or otherwise available CMake packages for:
-    - `boost-beast`
-    - `nlohmann-json`
-    - `openssl`
-    - `spdlog`
+- a C++23 compiler with module dependency scanning
+- standard library module support for `import std;`
+- vcpkg manifest mode, or installed CMake packages for `boost-beast`, `nlohmann-json`, `openssl`, and `spdlog`
 
-Windows requirements:
-
-- Visual Studio 2022 or newer with MSVC C++ tools
-- Windows SDK
-
-Linux requirements:
-
-- A C++23 compiler and standard library combination with usable C++ module support
-- OpenSSL development libraries when not using vcpkg
+MSVC builds require a Visual Studio developer environment. Linux builds require a compiler and standard library
+combination that supports C++23 modules and `import std;`.
 
 ## Build
 
-Configure and build with CMake:
+With vcpkg:
 
 ```sh
-cmake -B build \
+cmake -B ./build \
   -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake \
-  -DC2SERVER_BUILD_APP=ON
-cmake --build build --parallel
+  -DC2SERVER_BUILD_APP=ON \
+  -DC2SERVER_BUILD_TESTS=ON \
+  -DC2SERVER_BUILD_DOCS=OFF \
+  -DC2SERVER_INSTALL=ON
+cmake --build ./build --parallel
 ```
 
-On Windows with the Visual Studio developer environment:
+CMake options:
 
-```powershell
-cmake -B build `
-  -DCMAKE_TOOLCHAIN_FILE=C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake `
-  -DC2SERVER_BUILD_APP=ON
-cmake --build build
+| Option | Default | Description |
+| --- | --- | --- |
+| `C2SERVER_BUILD_APP` | `ON` | Build the `c2server` executable. |
+| `C2SERVER_BUILD_TESTS` | `ON` | Build Boost.UT tests. |
+| `C2SERVER_BUILD_DOCS` | `ON` | Enable the `c2server_docs` target when Doxygen is available. |
+| `C2SERVER_INSTALL` | `ON` | Enable install rules and package generation. |
+
+Run tests:
+
+```sh
+ctest --test-dir ./build --output-on-failure
 ```
 
-The build uses C++23 modules and `import std`, so the compiler, standard library, and CMake generator must support
-module dependency scanning.
+Generate API documentation:
 
-## Modules and Coroutines
+```sh
+cmake --build ./build --target c2server_docs
+```
 
-`c2server_core` is a module-first library. Public interfaces live in `.cppm` module units such as:
+## Install
 
-- `c2server.config`
+```sh
+cmake --install ./build --prefix /desired/prefix
+```
+
+The install contains:
+
+- `c2server::core` CMake target
+- public `.cppm` module interfaces
+- library and optional executable
+- sample `config.json`
+- HTML API documentation when `c2server_docs` was generated
+
+## Consume Modules
+
+Consumers must enable C++23 module scanning and `import std` before creating targets. The experimental gate must be set
+before `project(...)`.
+
+```cmake
+cmake_minimum_required(VERSION 3.30)
+
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD
+    # CMake experimental feature gate for `import std`.
+    # This UUID is defined by CMake, not c2server. It may change between
+    # CMake releases. Use the value from Help/dev/experimental.rst in the
+    # source tree for the CMake version used to configure the project.
+    "d0edc3af-4c50-42ea-a356-e2862fe7a444"
+    CACHE STRING "CMake experimental import std gate")
+
+if(CMAKE_HOST_WIN32)
+   set(CMAKE_CXX_FLAGS_INIT "/utf-8")
+endif()
+
+project(example LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+set(CMAKE_CXX_MODULE_STD ON)
+
+find_package(c2server CONFIG REQUIRED)
+
+add_executable(example main.cpp)
+target_link_libraries(example PRIVATE c2server::core)
+```
+
+Configure the consumer with the installation prefix:
+
+```sh
+cmake -B ./build \
+  -DCMAKE_PREFIX_PATH=/desired/prefix \
+  -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build ./build --parallel
+```
+
+Public modules:
+
 - `c2server.client`
+- `c2server.config`
 - `c2server.error`
 - `c2server.http`
 - `c2server.logger`
@@ -67,211 +124,38 @@ module dependency scanning.
 - `c2server.payload`
 - `c2server.router`
 - `c2server.server`
+- `c2server.version`
 
-Consumers import the modules they use instead of including public headers:
-
-```c++
-import c2server.http;
-import c2server.middleware;
-import c2server.router;
-import c2server.server;
-```
-
-The asynchronous server implementation is coroutine-based. The listener accepts connections with Boost.Asio
-`awaitable` operations, sessions read and write HTTP messages with `co_await`, and TLS-capable listeners use Beast's
-SSL detection before dispatching to either a plain HTTP or TLS session.
-
-Boost and OpenSSL types are kept in implementation files and private detail headers. They are not part of the public
-module API.
-
-## CMake Options
-
-- `C2SERVER_BUILD_APP=ON` builds the `c2server` executable.
-
-## Configuration
-
-The executable loads `config.json` from its working directory by default, or a custom config path passed as the first
-argument:
-
-```sh
-./build/app/c2server ./config/config.json
-```
-
-The default config is copied from `config/config.json` into the build directory as `config.json`.
-
-```json
-{
-  "server": {
-    "host": "0.0.0.0",
-    "port": 8080,
-    "worker_threads": 0,
-    "request_body_limit_bytes": 1048576,
-    "request_timeout_seconds": 10,
-    "ssl": {
-      "enabled": false,
-      "allow_plain_http": true,
-      "certificate_chain_file": "",
-      "private_key_file": "",
-      "private_key_password": "",
-      "dh_params_file": ""
-    }
-  },
-  "log_file": "c2server.log"
-}
-```
-
-## Library Usage
-
-Import the modules you need and register routes before constructing the server:
+## Example
 
 ```c++
 import c2server.config;
 import c2server.http;
+import c2server.middleware;
 import c2server.router;
 import c2server.server;
-
+import c2server.version;
 import std;
 
 int main() {
-   auto settings = c2server::loadServerSettings("config.json");
    auto router = std::make_shared<c2server::Router>();
 
    router->use(c2server::middleware::requestId())
-       .use(c2server::middleware::accessLog())
        .use(c2server::middleware::securityHeaders())
-       .use(c2server::middleware::cors({
-           .allowedOrigins = {"https://example.com"},
-           .allowCredentials = true,
-       }))
-       .use(c2server::middleware::rateLimit({
-           .maxRequests = 100,
-           .window = std::chrono::seconds{60},
-       }));
+       .use(c2server::middleware::cors());
 
    router->get("/health", [](const c2server::HttpRequest&) {
       return c2server::jsonOk({{"status", "ok"}});
    });
 
-   c2server::Server{std::move(settings), router}.run();
+   c2server::Server{c2server::loadServerSettings("config.json"), router}.run();
 }
 ```
 
-Routes are immutable after server construction. `Server` freezes the router at construction time so request handling can
-read routes concurrently without route-mutation locks.
+Register routes and middleware before constructing `c2server::Server`. Server construction freezes the router.
 
-## Middleware
-
-`Router::use` registers Express-style middleware in declaration order. Middleware can inspect or copy the request,
-short-circuit with a response, or call `next(req)` and post-process the response:
-
-```c++
-router->use([](const c2server::HttpRequest& req, const c2server::Next& next) {
-   auto response = next(req);
-   c2server::setHeader(response, "Cache-Control", "no-store");
-   return response;
-});
-```
-
-The `c2server.middleware` module provides CORS preflight handling, browser security headers, request IDs, access
-logging, and per-client rate limiting. Request header names are normalized for lookup with
-`c2server::header(req.headers, "Header-Name")`. Routes match `req.path`, while `req.target` preserves the original
-target and `req.query` contains the query string.
-
-## HTTP Helpers
-
-`c2server.http` provides convenience helpers for common responses:
-
-```c++
-return c2server::ok("hello");
-return c2server::ok("<h1>hello</h1>", "text/html");
-return c2server::jsonOk({{"status", "ok"}});
-return c2server::json({{"error", "invalid request"}}, 400);
-```
-
-`json` and `jsonOk` accept `c2server::JsonObject`, an alias for `std::unordered_map<std::string, std::string>`, and
-return responses with `application/json`.
-
-## HTTP Client
-
-`c2server.client` provides a synchronous plain-HTTP client for endpoint tests and small service-to-service calls:
-
-```c++
-import c2server.client;
-
-auto client = c2server::Client{{
-    .host = "127.0.0.1",
-    .port = 8080,
-}};
-
-const auto response = client.get("/health");
-```
-
-Client failures throw `c2server::ClientError`.
-
-Enable TLS and peer verification with a CA file when calling HTTPS endpoints:
-
-```c++
-auto client = c2server::Client{{
-    .host = "api.example.com",
-    .port = 443,
-    .ssl = {
-        .enabled = true,
-        .verifyPeer = true,
-        .caFile = "ca.crt",
-    },
-}};
-```
-
-## Tests
-
-Enable `C2SERVER_BUILD_TESTS` to build the Boost.UT endpoint integration tests:
+The executable loads `config.json` from its working directory by default. Pass a custom path as its first argument:
 
 ```sh
-cmake -B build -DC2SERVER_BUILD_TESTS=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
-```
-
-The integration suites start real servers on available loopback ports and send requests through `c2server::Client`.
-They cover plain HTTP endpoints, TLS-only serving, mixed plain HTTP and TLS mode, plain HTTP rejection on TLS-only
-listeners, and untrusted certificate rejection.
-Each `tests/*.cpp` source becomes its own Boost.UT executable. Build `c2server_test_all` to run the full suite:
-
-```sh
-cmake --build build --target c2server_test_all
-```
-
-Set `BOOST_UT_ENABLE_RUN_AFTER_BUILD=OFF` when test execution should be handled exclusively through CTest.
-
-## TLS
-
-TLS can be enabled under `server.ssl`. When enabled, the listener detects TLS handshakes and can still allow plain HTTP
-on the same port if `allow_plain_http` is true:
-
-```json
-{
-  "server": {
-    "ssl": {
-      "enabled": true,
-      "allow_plain_http": true,
-      "certificate_chain_file": "server.crt",
-      "private_key_file": "server.key"
-    }
-  }
-}
-```
-
-## Shutdown
-
-The server installs Boost.Asio signal handling for graceful shutdown. Stop the executable with `Ctrl+C` or the
-platform's normal termination signal.
-
-Applications can attach extra shutdown work with `Server::setShutdownCallback`:
-
-```c++
-c2server::Server server{settings, router};
-server.setShutdownCallback([](int signalNumber) {
-   std::println("shutdown signal: {}", signalNumber);
-});
-server.run();
+./build/app/c2server ./config/config.json
 ```
