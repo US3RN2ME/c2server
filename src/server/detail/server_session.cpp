@@ -42,20 +42,32 @@ namespace c2server::detail {
       }
 
       HttpRequest toDomain(const http::request<http::string_body>& req, std::string_view ip) {
+         const auto target = std::string{req.target()};
+         const auto queryStart = target.find('?');
+         HttpHeaders headers;
+         for (const auto& field : req) {
+            setHeader(headers, std::string{field.name_string()}, std::string{field.value()});
+         }
          return {
              .method = toDomainMethod(req.method()),
              .methodText = std::string(req.method_string()),
-             .target = std::string(req.target()),
+             .target = target,
+             .path = target.substr(0, queryStart),
+             .query = queryStart == std::string::npos ? std::string{} : target.substr(queryStart + 1),
              .body = req.body(),
              .remoteIp = std::string{ip},
+             .headers = std::move(headers),
          };
       }
 
-      http::response<http::string_body> toBeast(const HttpResponse& res, unsigned version) {
+      http::response<http::string_body> toBeast(const HttpResponse& res, unsigned version, bool keepAlive) {
          http::response<http::string_body> out{http::status(res.status), version};
          out.set(http::field::server, "c2server");
          out.set(http::field::content_type, res.contentType);
-         out.keep_alive(false);
+         for (const auto& [name, value] : res.headers) {
+            out.set(name, value);
+         }
+         out.keep_alive(keepAlive);
          out.body() = res.body;
          out.prepare_payload();
          return out;
@@ -99,16 +111,22 @@ namespace c2server::detail {
       net::awaitable<void> runHttpSession(Stream& stream, beast::flat_buffer& buf, std::string ip, HttpHandler handler,
                                           std::uint64_t requestBodyLimitBytes, std::uint64_t requestTimeoutSeconds) {
          try {
-            http::request_parser<http::string_body> parser;
-            parser.body_limit(requestBodyLimitBytes);
-            beast::get_lowest_layer(stream).expires_after(std::chrono::seconds{requestTimeoutSeconds});
-            co_await http::async_read(stream, buf, parser, net::use_awaitable);
+            while (true) {
+               http::request_parser<http::string_body> parser;
+               parser.body_limit(requestBodyLimitBytes);
+               beast::get_lowest_layer(stream).expires_after(std::chrono::seconds{requestTimeoutSeconds});
+               co_await http::async_read(stream, buf, parser, net::use_awaitable);
 
-            auto req = parser.release();
-            auto domainReq = toDomain(req, ip);
-            auto res = safeHandle(handler, domainReq);
-            beast::get_lowest_layer(stream).expires_after(std::chrono::seconds{requestTimeoutSeconds});
-            co_await http::async_write(stream, toBeast(res, req.version()), net::use_awaitable);
+               auto req = parser.release();
+               auto domainReq = toDomain(req, ip);
+               auto res = safeHandle(handler, domainReq);
+               const auto keepAlive = req.keep_alive();
+               beast::get_lowest_layer(stream).expires_after(std::chrono::seconds{requestTimeoutSeconds});
+               co_await http::async_write(stream, toBeast(res, req.version(), keepAlive), net::use_awaitable);
+               if (!keepAlive) {
+                  break;
+               }
+            }
          } catch (const boost::system::system_error& e) {
             logSessionSystemError(ip, e.code());
          } catch (const std::exception& e) {

@@ -1,10 +1,13 @@
 module c2server.server;
 
-import :detail;
 import c2server.error;
 import std;
 
 namespace c2server {
+
+   namespace detail {
+      void runServer(const ServerSettings& settings, std::shared_ptr<Router> router, ShutdownCallback shutdownCallback);
+   }
 
    Server::Server(Host h, Port p, std::shared_ptr<Router> router)
        : Server(ServerSettings{.host = std::move(h.value), .port = p.value}, std::move(router)) {}

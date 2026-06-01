@@ -62,6 +62,7 @@ module dependency scanning.
 - `c2server.error`
 - `c2server.http`
 - `c2server.logger`
+- `c2server.middleware`
 - `c2server.payload`
 - `c2server.router`
 - `c2server.server`
@@ -70,6 +71,7 @@ Consumers import the modules they use instead of including public headers:
 
 ```c++
 import c2server.http;
+import c2server.middleware;
 import c2server.router;
 import c2server.server;
 ```
@@ -133,6 +135,18 @@ int main() {
    auto settings = c2server::loadServerSettings("config.json");
    auto router = std::make_shared<c2server::Router>();
 
+   router->use(c2server::middleware::requestId())
+       .use(c2server::middleware::accessLog())
+       .use(c2server::middleware::securityHeaders())
+       .use(c2server::middleware::cors({
+           .allowedOrigins = {"https://example.com"},
+           .allowCredentials = true,
+       }))
+       .use(c2server::middleware::rateLimit({
+           .maxRequests = 100,
+           .window = std::chrono::seconds{60},
+       }));
+
    router->get("/health", [](const c2server::HttpRequest&) {
       return c2server::jsonOk({{"status", "ok"}});
    });
@@ -143,6 +157,24 @@ int main() {
 
 Routes are immutable after server construction. `Server` freezes the router at construction time so request handling can
 read routes concurrently without route-mutation locks.
+
+## Middleware
+
+`Router::use` registers Express-style middleware in declaration order. Middleware can inspect or copy the request,
+short-circuit with a response, or call `next(req)` and post-process the response:
+
+```c++
+router->use([](const c2server::HttpRequest& req, const c2server::Next& next) {
+   auto response = next(req);
+   c2server::setHeader(response, "Cache-Control", "no-store");
+   return response;
+});
+```
+
+The `c2server.middleware` module provides CORS preflight handling, browser security headers, request IDs, access
+logging, and per-client rate limiting. Request header names are normalized for lookup with
+`c2server::header(req.headers, "Header-Name")`. Routes match `req.path`, while `req.target` preserves the original
+target and `req.query` contains the query string.
 
 ## HTTP Helpers
 

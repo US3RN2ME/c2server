@@ -32,6 +32,7 @@ export namespace c2server {
 
       Router& addEndpoint(EndpointPtr endpoint);
       Router& addRoute(HttpMethod method, std::string target, HttpHandler handler);
+      Router& use(Middleware middleware);
       Router& get(std::string target, HttpHandler handler);
       Router& post(std::string target, HttpHandler handler);
       Router& put(std::string target, HttpHandler handler);
@@ -45,8 +46,11 @@ export namespace c2server {
 
    private:
       void ensureMutable() const;
+      HttpResponse dispatch(const HttpRequest& req) const;
+      HttpResponse dispatchMiddleware(std::size_t index, const HttpRequest& req) const;
 
       std::vector<EndpointPtr> endpoints_;
+      std::vector<Middleware> middleware_;
       bool frozen_ = false;
    };
 

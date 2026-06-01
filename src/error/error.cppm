@@ -39,7 +39,13 @@ export namespace c2server {
    struct LoggerError : Error {
       using Error::Error;
    };
+   struct MiddlewareError : Error {
+      using Error::Error;
+   };
    struct PayloadError : Error {
+      using Error::Error;
+   };
+   struct SubmissionError : Error {
       using Error::Error;
    };
 

