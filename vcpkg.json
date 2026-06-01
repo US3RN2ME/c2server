@@ -8,5 +8,13 @@
     "nlohmann-json",
     "openssl",
     "spdlog"
-  ]
+  ],
+  "features": {
+    "tests": {
+      "description": "Build Tests",
+      "dependencies": [
+        "bext-ut"
+      ]
+    }
+  }
 }

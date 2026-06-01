@@ -18,6 +18,9 @@ export namespace c2server {
    struct HttpError : Error {
       using Error::Error;
    };
+   struct ClientError : Error {
+      using Error::Error;
+   };
    struct EndpointError : Error {
       using Error::Error;
    };

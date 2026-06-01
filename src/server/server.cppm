@@ -14,6 +14,7 @@ export namespace c2server {
       Server(ServerSettings settings, std::shared_ptr<Router> router);
       Server& setShutdownCallback(ShutdownCallback callback);
       void run();
+      void run(std::stop_token stopToken);
 
    private:
       ServerSettings settings_;

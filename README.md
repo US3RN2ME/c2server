@@ -59,6 +59,7 @@ module dependency scanning.
 `c2server_core` is a module-first library. Public interfaces live in `.cppm` module units such as:
 
 - `c2server.config`
+- `c2server.client`
 - `c2server.error`
 - `c2server.http`
 - `c2server.logger`
@@ -189,6 +190,58 @@ return c2server::json({{"error", "invalid request"}}, 400);
 
 `json` and `jsonOk` accept `c2server::JsonObject`, an alias for `std::unordered_map<std::string, std::string>`, and
 return responses with `application/json`.
+
+## HTTP Client
+
+`c2server.client` provides a synchronous plain-HTTP client for endpoint tests and small service-to-service calls:
+
+```c++
+import c2server.client;
+
+auto client = c2server::Client{{
+    .host = "127.0.0.1",
+    .port = 8080,
+}};
+
+const auto response = client.get("/health");
+```
+
+Client failures throw `c2server::ClientError`.
+
+Enable TLS and peer verification with a CA file when calling HTTPS endpoints:
+
+```c++
+auto client = c2server::Client{{
+    .host = "api.example.com",
+    .port = 443,
+    .ssl = {
+        .enabled = true,
+        .verifyPeer = true,
+        .caFile = "ca.crt",
+    },
+}};
+```
+
+## Tests
+
+Enable `C2SERVER_BUILD_TESTS` to build the Boost.UT endpoint integration tests:
+
+```sh
+cmake -B build -DC2SERVER_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The integration suites start real servers on available loopback ports and send requests through `c2server::Client`.
+They cover plain HTTP endpoints, TLS-only serving, mixed plain HTTP and TLS mode, plain HTTP rejection on TLS-only
+listeners, and untrusted certificate rejection.
+Each `tests/*.cpp` source becomes its own Boost.UT executable. Build `c2server_test_all` to run the full suite:
+
+```sh
+cmake --build build --target c2server_test_all
+```
+
+Set `BOOST_UT_ENABLE_RUN_AFTER_BUILD=OFF` when test execution should be handled exclusively through CTest.
 
 ## TLS
 
