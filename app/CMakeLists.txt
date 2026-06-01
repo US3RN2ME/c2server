@@ -1,4 +1,5 @@
 add_executable(c2server)
+c2server_configure_target(c2server)
 
 target_sources(c2server PRIVATE main.cpp)
 

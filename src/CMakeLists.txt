@@ -10,6 +10,7 @@ list(APPEND C2SERVER_CORE_MODULES "${PROJECT_BINARY_DIR}/generated/version.cppm"
 add_library(c2server_core STATIC)
 add_library(c2server::core ALIAS c2server_core)
 set_target_properties(c2server_core PROPERTIES EXPORT_NAME core)
+c2server_configure_target(c2server_core)
 
 target_sources(c2server_core PRIVATE ${C2SERVER_CORE_SOURCES})
 
@@ -32,8 +33,6 @@ target_sources(
            "${CMAKE_CURRENT_SOURCE_DIR}"
            FILES
            ${C2SERVER_CORE_PRIVATE_MODULES})
-
-target_compile_features(c2server_core PUBLIC cxx_std_23)
 
 target_include_directories(c2server_core PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>")
 
