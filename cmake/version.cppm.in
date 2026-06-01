@@ -1,0 +1,19 @@
+export module c2server.version;
+
+import std;
+
+export namespace c2server {
+
+   /** @brief Project version string. */
+   constexpr std::string_view kVersion = "@PROJECT_VERSION@";
+
+   /** @brief Project major version component. */
+   constexpr int kVersionMajor = @PROJECT_VERSION_MAJOR@;
+
+   /** @brief Project minor version component. */
+   constexpr int kVersionMinor = @PROJECT_VERSION_MINOR@;
+
+   /** @brief Project patch version component. */
+   constexpr int kVersionPatch = @PROJECT_VERSION_PATCH@;
+
+} // namespace c2server

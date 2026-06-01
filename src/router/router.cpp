@@ -29,7 +29,7 @@ namespace c2server {
    }
 
    bool RouteEndpoint::matches(const HttpRequest& req) const {
-      return req.method == method_ && req.target == target_;
+      return req.method == method_ && req.path == target_;
    }
 
    HttpResponse RouteEndpoint::handle(const HttpRequest& req) const {
@@ -64,6 +64,15 @@ namespace c2server {
 
    Router& Router::addRoute(HttpMethod method, std::string target, HttpHandler handler) {
       return addEndpoint(std::make_shared<RouteEndpoint>(method, std::move(target), std::move(handler)));
+   }
+
+   Router& Router::use(Middleware middleware) {
+      ensureMutable();
+      if (!middleware) {
+         throw RouterError{"middleware must not be empty"};
+      }
+      middleware_.push_back(std::move(middleware));
+      return *this;
    }
 
    Router& Router::get(std::string target, HttpHandler handler) {
@@ -104,27 +113,46 @@ namespace c2server {
    }
 
    HttpResponse Router::handle(const HttpRequest& req) const {
+      try {
+         return dispatchMiddleware(0, req);
+      } catch (const Error& e) {
+         log::error("Request pipeline error for {} {}: {}", req.methodText, req.target, e.what());
+      } catch (const std::exception& e) {
+         log::error("Unhandled request pipeline error for {} {}: {}", req.methodText, req.target, e.what());
+      } catch (...) {
+         log::error("Unhandled request pipeline error for {} {}", req.methodText, req.target);
+      }
+      return internalServerError("internal server error");
+   }
+
+   HttpResponse Router::dispatch(const HttpRequest& req) const {
       for (const auto& endpoint : endpoints_) {
          if (endpoint->matches(req)) {
             try {
                return endpoint->handle(req);
             } catch (const EndpointError& e) {
                log::error("Endpoint handler error for {} {}: {}", req.methodText, req.target, e.what());
-               return internalServerError(e.what());
             } catch (const Error& e) {
                log::error("Router error for {} {}: {}", req.methodText, req.target, e.what());
-               return internalServerError(e.what());
             } catch (const std::exception& e) {
                log::error("Unhandled route error for {} {}: {}", req.methodText, req.target, e.what());
-               return internalServerError(e.what());
             } catch (...) {
                log::error("Unhandled route error for {} {}", req.methodText, req.target);
-               return internalServerError("internal server error");
             }
+            return internalServerError("internal server error");
          }
       }
 
       return notFound();
+   }
+
+   HttpResponse Router::dispatchMiddleware(std::size_t index, const HttpRequest& req) const {
+      if (index == middleware_.size()) {
+         return dispatch(req);
+      }
+      return middleware_[index](req, [this, index](const HttpRequest& nextReq) {
+         return dispatchMiddleware(index + 1, nextReq);
+      });
    }
 
    void Router::ensureMutable() const {

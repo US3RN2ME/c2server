@@ -18,7 +18,8 @@ import std;
 
 namespace c2server::detail {
 
-   void runServer(const ServerSettings& settings, std::shared_ptr<Router> router, c2server::ShutdownCallback shutdownCallback) {
+   void runServer(const ServerSettings& settings, std::shared_ptr<Router> router, c2server::ShutdownCallback shutdownCallback,
+                  std::stop_token stopToken) {
       const auto workerThreads =
           settings.workerThreads == 0 ? std::max(1u, std::thread::hardware_concurrency()) : settings.workerThreads;
 
@@ -63,6 +64,10 @@ namespace c2server::detail {
                                                ioc.stop();
                                             }};
       shutdownSignals.start();
+
+      std::stop_callback stopCallback{stopToken, [&ioc] {
+                                         ioc.stop();
+                                      }};
 
       net::co_spawn(net::make_strand(ioc),
                     listen(
