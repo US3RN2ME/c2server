@@ -1,0 +1,213 @@
+/**
+ * @mainpage c2server API Reference
+ *
+ * @section overview Overview
+ *
+ * `c2server` is a C++23 HTTP and HTTPS server library built on Boost.Asio and
+ * Boost.Beast. It provides routing, Express-style middleware, JSON-backed
+ * configuration, structured exceptions, graceful shutdown, a synchronous HTTP
+ * client, and convenience helpers for common HTTP responses.
+ *
+ * The public API is exposed through C++ modules. Boost and OpenSSL types remain
+ * implementation details.
+ *
+ * @section quick_start Quick Start
+ *
+ * Import the required modules, register middleware and routes, then run the
+ * server:
+ *
+ * @code{.cpp}
+ * import c2server.config;
+ * import c2server.http;
+ * import c2server.middleware;
+ * import c2server.router;
+ * import c2server.server;
+ *
+ * import std;
+ *
+ * int main() {
+ *    auto router = std::make_shared<c2server::Router>();
+ *
+ *    router->use(c2server::middleware::requestId())
+ *        .use(c2server::middleware::accessLog())
+ *        .use(c2server::middleware::securityHeaders())
+ *        .use(c2server::middleware::cors())
+ *        .use(c2server::middleware::rateLimit());
+ *
+ *    router->get("/health", [](const c2server::HttpRequest&) {
+ *       return c2server::jsonOk({{"status", "ok"}});
+ *    });
+ *
+ *    auto settings = c2server::loadServerSettings("config.json");
+ *    c2server::Server{std::move(settings), router}.run();
+ * }
+ * @endcode
+ *
+ * A c2server::Server freezes its c2server::Router during construction. Register
+ * all routes and middleware before creating the server.
+ *
+ * @section modules Public Modules
+ *
+ * | Module | Purpose |
+ * | --- | --- |
+ * | `c2server.client` | Synchronous HTTP and HTTPS client. |
+ * | `c2server.config` | Server configuration loading and validation. |
+ * | `c2server.error` | Structured exception hierarchy. |
+ * | `c2server.http` | HTTP request, response, header, and JSON helpers. |
+ * | `c2server.logger` | Logging initialization and severity helpers. |
+ * | `c2server.middleware` | Built-in middleware factories. |
+ * | `c2server.payload` | Thread-safe in-memory payload storage. |
+ * | `c2server.router` | Endpoint registration and middleware dispatch. |
+ * | `c2server.server` | HTTP and HTTPS server lifecycle. |
+ *
+ * @section routing Routing
+ *
+ * c2server::Router supports `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`,
+ * and `OPTIONS` routes. Handlers receive a c2server::HttpRequest and return a
+ * c2server::HttpResponse.
+ *
+ * @code{.cpp}
+ * router->get("/hello", [](const c2server::HttpRequest& req) {
+ *    return c2server::ok("query: " + req.query);
+ * });
+ *
+ * router->post("/echo", [](const c2server::HttpRequest& req) {
+ *    return c2server::ok(req.body, "application/octet-stream");
+ * });
+ * @endcode
+ *
+ * Route matching uses c2server::HttpRequest::path. The original target remains
+ * available as c2server::HttpRequest::target, and the query string is exposed
+ * as c2server::HttpRequest::query.
+ *
+ * @section middleware Middleware
+ *
+ * c2server::Router::use registers middleware in declaration order. Middleware
+ * may inspect a request, return a response immediately, or invoke the next
+ * handler and post-process its response:
+ *
+ * @code{.cpp}
+ * router->use([](const c2server::HttpRequest& req, const c2server::Next& next) {
+ *    auto response = next(req);
+ *    c2server::setHeader(response, "Cache-Control", "no-store");
+ *    return response;
+ * });
+ * @endcode
+ *
+ * The `c2server.middleware` module provides:
+ *
+ * - c2server::middleware::cors for CORS headers and preflight requests.
+ * - c2server::middleware::securityHeaders for common browser security headers.
+ * - c2server::middleware::requestId for generated or preserved request IDs.
+ * - c2server::middleware::accessLog for request logging.
+ * - c2server::middleware::rateLimit for per-client request limits.
+ *
+ * @section responses HTTP Helpers
+ *
+ * The `c2server.http` module provides helpers for common responses:
+ *
+ * @code{.cpp}
+ * return c2server::ok("hello");
+ * return c2server::ok("<h1>hello</h1>", "text/html");
+ * return c2server::jsonOk({{"status", "ok"}});
+ * return c2server::json({{"error", "invalid request"}}, 400);
+ * @endcode
+ *
+ * Header lookup is case-insensitive through c2server::header. Use
+ * c2server::setHeader to set normalized request or response headers.
+ *
+ * @section client HTTP Client
+ *
+ * c2server::Client is a synchronous HTTP and HTTPS client suitable for endpoint
+ * tests and small service-to-service calls:
+ *
+ * @code{.cpp}
+ * import c2server.client;
+ *
+ * auto client = c2server::Client{{
+ *     .host = "127.0.0.1",
+ *     .port = 8080,
+ * }};
+ *
+ * const auto response = client.get("/health");
+ * @endcode
+ *
+ * Configure TLS and peer verification for HTTPS endpoints:
+ *
+ * @code{.cpp}
+ * auto client = c2server::Client{{
+ *     .host = "api.example.com",
+ *     .port = 443,
+ *     .ssl = {
+ *         .enabled = true,
+ *         .verifyPeer = true,
+ *         .caFile = "ca.crt",
+ *     },
+ * }};
+ * @endcode
+ *
+ * @section configuration Configuration
+ *
+ * Load c2server::ServerSettings directly, or load c2server::AppConfig when the
+ * application also needs logging configuration:
+ *
+ * @code{.json}
+ * {
+ *   "server": {
+ *     "host": "0.0.0.0",
+ *     "port": 8080,
+ *     "worker_threads": 0,
+ *     "request_body_limit_bytes": 1048576,
+ *     "request_timeout_seconds": 30,
+ *     "ssl": {
+ *       "enabled": false,
+ *       "allow_plain_http": true,
+ *       "certificate_chain_file": "",
+ *       "private_key_file": "",
+ *       "private_key_password": "",
+ *       "dh_params_file": ""
+ *     }
+ *   },
+ *   "log_file": "c2server.log"
+ * }
+ * @endcode
+ *
+ * When TLS is enabled, `allow_plain_http` controls whether the same listener
+ * accepts both plain HTTP and TLS connections.
+ *
+ * @section shutdown Graceful Shutdown
+ *
+ * c2server::Server::run handles the platform's normal termination signals.
+ * Applications may attach additional shutdown work:
+ *
+ * @code{.cpp}
+ * c2server::Server server{settings, router};
+ * server.setShutdownCallback([](int signalNumber) {
+ *    std::println("shutdown signal: {}", signalNumber);
+ * });
+ * server.run();
+ * @endcode
+ *
+ * The c2server::Server::run(std::stop_token) overload also supports cooperative
+ * shutdown initiated by the embedding application.
+ *
+ * @section errors Errors
+ *
+ * Public operations report failures with exceptions derived from
+ * c2server::Error. Catch a more specific type such as c2server::ConfigError,
+ * c2server::ClientError, or c2server::ServerError when recovery depends on the
+ * failed subsystem.
+ *
+ * @section testing Tests
+ *
+ * The Boost.UT integration suites start real loopback servers and exercise
+ * endpoint dispatch, middleware behavior, router freezing, stop-token shutdown,
+ * TLS-only serving, mixed HTTP and TLS mode, and certificate verification.
+ *
+ * Build and run the configured suites with:
+ *
+ * @code{.sh}
+ * cmake --build build --target c2server_test_all
+ * ctest --test-dir build --output-on-failure
+ * @endcode
+ */

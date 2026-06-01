@@ -10,6 +10,7 @@ endif()
 
 option(C2SERVER_BUILD_TESTS "Build tests" ON)
 option(C2SERVER_BUILD_APP "Build the c2server executable" ON)
+option(C2SERVER_BUILD_DOCS "Build API documentation" ON)
 
 if(C2SERVER_BUILD_TESTS)
    list(APPEND VCPKG_MANIFEST_FEATURES "tests")
@@ -43,4 +44,22 @@ endif()
 if(C2SERVER_BUILD_TESTS)
    enable_testing()
    add_subdirectory(tests)
+endif()
+
+if(C2SERVER_BUILD_DOCS)
+   find_package(Doxygen QUIET)
+   if(DOXYGEN_FOUND)
+      set(DOXYGEN_INPUT_DIR "${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/docs")
+      set(DOXYGEN_OUTPUT_DIR "${PROJECT_BINARY_DIR}/docs")
+      configure_file("${CMAKE_SOURCE_DIR}/cmake/Doxyfile.in" "${PROJECT_BINARY_DIR}/Doxyfile" @ONLY)
+
+      add_custom_target(
+         c2server_docs
+         COMMAND ${DOXYGEN_EXECUTABLE} "${PROJECT_BINARY_DIR}/Doxyfile"
+         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+         COMMENT "Generating API documentation with Doxygen"
+         VERBATIM)
+   else()
+      message(STATUS "Doxygen not found; docs target disabled")
+   endif()
 endif()
