@@ -12,6 +12,97 @@ Features:
 - synchronous HTTP and HTTPS client
 - public C++ modules
 
+## Architecture
+
+The library is structured as a set of independent C++23 modules that compose around a shared `Router`:
+
+```
+┌─────────────────────────────────────────────┐
+│                  c2server::Server            │
+│  (Boost.Asio acceptor + Beast session loop)  │
+└────────────────────┬────────────────────────┘
+                     │ HttpRequest
+                     ▼
+┌─────────────────────────────────────────────┐
+│                 c2server::Router             │
+│                                             │
+│  Middleware chain (applied in order):       │
+│    requestId → accessLog → securityHeaders  │
+│    → cors → rateLimit → …                  │
+│                                             │
+│  Endpoint dispatch (first match wins):      │
+│    RouteEndpoint  ·  custom EndpointBase    │
+└─────────────────────────────────────────────┘
+```
+
+**Server** — `c2server::Server` wraps a Boost.Asio `io_context` and a Beast HTTP/HTTPS acceptor. Each accepted
+connection gets its own session that reads one request, routes it through the `Router`, and writes the response.
+`workerThreads` controls the thread-pool size; zero selects one thread per hardware core. TLS is handled by an
+`ssl::context` built from `SslSettings`; plain HTTP is accepted alongside HTTPS when `allowPlainHttp` is set.
+
+**Router** — holds an ordered list of `Middleware` functions and `EndpointBase` instances. On each request the
+middleware chain is traversed first; each middleware may short-circuit or call `next`. Afterwards the first
+`EndpointBase::matches()` that returns `true` handles the request. `RouteEndpoint` (returned by `get`, `post`,
+`put`, `patch`, `delete_`, `head`, `options`) does exact method + path matching. Custom endpoints can be added via
+`addEndpoint`. The router is frozen on `Server` construction and rejects further changes.
+
+**OpenAPI generation** — every `RouteEndpoint` carries an optional `RouteDoc` (summary, description, tags,
+`RequestBodyDoc`, `ResponseDoc` list). `Router::openApiJson()` walks the registered routes and emits an OpenAPI 3.0
+JSON document. `Router::serveOpenApi()` registers two extra routes that serve that document and a Swagger UI page.
+
+**Middleware** — each middleware is a `std::function<HttpResponse(const HttpRequest&, Next)>` where `Next` is a
+callable that forwards to the rest of the chain. The built-in middleware are:
+
+| Middleware | What it does |
+| --- | --- |
+| `requestId()` | Attaches a UUID to every request in `X-Request-ID`. |
+| `accessLog()` | Logs method, path, status, and latency via spdlog. |
+| `securityHeaders()` | Adds `X-Frame-Options`, `X-Content-Type-Options`, `Strict-Transport-Security`, etc. |
+| `cors(CorsOptions)` | Handles preflight and attaches `Access-Control-*` headers. |
+| `rateLimit(RateLimitOptions)` | Per-IP sliding-window counter; returns 429 when exceeded. |
+
+**Client** — `c2server::Client` is a synchronous Boost.Beast HTTP client that shares the same `HttpRequest` /
+`HttpResponse` types as the server. It supports plain HTTP and TLS.
+
+**PayloadStore** — a mutex-guarded `std::string` with `get()` / `set()` for sharing mutable state across handlers
+without external synchronization.
+
+## Swagger UI
+
+`serveOpenApi()` inspects all registered `RouteDoc` metadata and generates a live OpenAPI 3.0 document. Swagger UI
+is served from the same process — no separate documentation server required.
+
+![Swagger UI screenshot](docs/swagger_screenshot.png)
+
+```c++
+router->serveOpenApi({
+   .info = {
+      .title       = "My API",
+      .version     = std::string{c2server::kVersion},
+      .description = "Auto-generated from RouteDoc annotations.",
+   },
+   // defaults: specTarget = "/openapi.json", docsTarget = "/docs"
+});
+```
+
+Each route contributes to the spec through its `RouteDoc`:
+
+```c++
+router->post(
+    "/echo",
+    [](const c2server::HttpRequest& req) { return c2server::ok(req.body, "text/plain"); },
+    c2server::RouteDoc{
+        .summary     = "Echo request body",
+        .tags        = {"examples"},
+        .requestBody = c2server::RequestBodyDoc{
+            .description = "Text to echo back.",
+            .contentType = "text/plain",
+            .required    = true,
+        },
+        .responses = {{.status = 200, .description = "Echoed text", .contentType = "text/plain"}},
+    });
+```
+
 ## Requirements
 
 - CMake 3.30 or newer
@@ -182,17 +273,8 @@ router->serveOpenApi({
 });
 ```
 
-Example targets:
-
-| Target | Description |
-| --- | --- |
-| `c2server_payload_server` | Original payload server example without Swagger UI. |
-| `c2server_swagger_server` | Documented API example with `/docs` and `/openapi.json`. |
-| `c2server_hello_world` | Minimal single-route HTTP server. |
-| `c2server_middleware_server` | Request ID, security headers, CORS, and rate-limit example. |
-
 Examples load `config.json` from their working directory by default. Pass a custom path as the first argument:
 
 ```sh
-./build/examples/c2server_swagger_server ./config/config.json
+./build/examples/swagger_example ./config/config.json
 ```
