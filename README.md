@@ -18,17 +18,17 @@ The library is structured as a set of independent C++23 modules that compose aro
 
 ```
 ┌─────────────────────────────────────────────┐
-│                  c2server::Server            │
-│  (Boost.Asio acceptor + Beast session loop)  │
+│                  c2server::Server           │
+│  (Boost.Asio acceptor + Beast session loop) │
 └────────────────────┬────────────────────────┘
                      │ HttpRequest
                      ▼
 ┌─────────────────────────────────────────────┐
-│                 c2server::Router             │
+│                 c2server::Router            │
 │                                             │
 │  Middleware chain (applied in order):       │
 │    requestId → accessLog → securityHeaders  │
-│    → cors → rateLimit → …                  │
+│    → cors → rateLimit → …                   │
 │                                             │
 │  Endpoint dispatch (first match wins):      │
 │    RouteEndpoint  ·  custom EndpointBase    │
