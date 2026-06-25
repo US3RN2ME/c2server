@@ -96,6 +96,21 @@ namespace {
          expect("same-origin" == c2server::header(response.headers, "Cross-Origin-Resource-Policy"));
       };
 
+      "[SecurityHeadersPreserveExplicitCsp]"_test = [] {
+         auto router = makeMiddlewareRouter();
+         router->get("/custom-csp", [](const c2server::HttpRequest&) {
+            auto response = c2server::ok("custom");
+            c2server::setHeader(response, "Content-Security-Policy", "default-src 'self'");
+            return response;
+         });
+         router->use(c2server::middleware::securityHeaders());
+         c2server::test::RunningServer server{router};
+
+         const auto response = server.plainClient.get("/custom-csp");
+         expect("default-src 'self'" == c2server::header(response.headers, "Content-Security-Policy"));
+         expect("nosniff" == c2server::header(response.headers, "X-Content-Type-Options"));
+      };
+
       "[CustomMiddlewareCanShortCircuit]"_test = [] {
          auto router = makeMiddlewareRouter();
          router->use([](const c2server::HttpRequest&, const c2server::Next&) {
