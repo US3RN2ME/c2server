@@ -9,7 +9,7 @@ if(CMAKE_HOST_WIN32)
 endif()
 
 option(C2SERVER_BUILD_TESTS "Build tests" ON)
-option(C2SERVER_BUILD_APP "Build the c2server executable" ON)
+option(C2SERVER_BUILD_EXAMPLES "Build examples" ON)
 option(C2SERVER_BUILD_DOCS "Build API documentation" ON)
 option(C2SERVER_INSTALL "Install c2server" ON)
 
@@ -66,14 +66,10 @@ if(C2SERVER_INSTALL)
            DESTINATION "${C2SERVER_INSTALL_CMAKEDIR}")
 
    install(FILES LICENSE README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/c2server")
-   install(FILES config/config.json DESTINATION "${CMAKE_INSTALL_DATADIR}/c2server/examples")
 endif()
 
-if(C2SERVER_BUILD_APP)
-   add_subdirectory(app)
-   if(C2SERVER_INSTALL)
-      install(TARGETS c2server RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-   endif()
+if(C2SERVER_BUILD_EXAMPLES)
+   add_subdirectory(examples)
 endif()
 
 if(C2SERVER_BUILD_TESTS)
