@@ -5,6 +5,7 @@ C++23 HTTP and HTTPS server library built on Boost.Asio and Boost.Beast.
 Features:
 
 - route handlers and Express-style middleware
+- generated OpenAPI JSON and Swagger UI endpoints
 - CORS, request IDs, security headers, access logs, and rate limiting
 - JSON configuration
 - graceful shutdown
@@ -28,7 +29,7 @@ With vcpkg:
 ```sh
 cmake -B ./build \
   -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake \
-  -DC2SERVER_BUILD_APP=ON \
+  -DC2SERVER_BUILD_EXAMPLES=ON \
   -DC2SERVER_BUILD_TESTS=ON \
   -DC2SERVER_BUILD_DOCS=OFF \
   -DC2SERVER_INSTALL=ON
@@ -39,7 +40,7 @@ CMake options:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `C2SERVER_BUILD_APP` | `ON` | Build the `c2server` executable. |
+| `C2SERVER_BUILD_EXAMPLES` | `ON` | Build example executables. |
 | `C2SERVER_BUILD_TESTS` | `ON` | Build Boost.UT tests. |
 | `C2SERVER_BUILD_DOCS` | `ON` | Enable the `c2server_docs` target when Doxygen is available. |
 | `C2SERVER_INSTALL` | `ON` | Enable install rules and package generation. |
@@ -66,8 +67,7 @@ The install contains:
 
 - `c2server::core` CMake target
 - public `.cppm` module interfaces
-- library and optional executable
-- sample `config.json`
+- library
 - HTML API documentation when `c2server_docs` was generated
 
 ## Consume Modules
@@ -147,6 +147,18 @@ int main() {
 
    router->get("/health", [](const c2server::HttpRequest&) {
       return c2server::jsonOk({{"status", "ok"}});
+   }, {
+      .summary = "Health check",
+      .tags = {"system"},
+      .responses = {{.status = 200, .description = "Service status", .contentType = "application/json"}},
+   });
+
+   router->serveOpenApi({
+      .info = {
+         .title = "Example API",
+         .version = std::string{c2server::kVersion},
+         .description = "Generated OpenAPI documentation.",
+      },
    });
 
    c2server::Server{c2server::loadServerSettings("config.json"), router}.run();
@@ -155,8 +167,32 @@ int main() {
 
 Register routes and middleware before constructing `c2server::Server`. Server construction freezes the router.
 
-The executable loads `config.json` from its working directory by default. Pass a custom path as its first argument:
+`serveOpenApi()` registers:
+
+- `/docs` for Swagger UI
+- `/openapi.json` for the generated OpenAPI document
+
+Both paths can be customized:
+
+```c++
+router->serveOpenApi({
+   .info = {.title = "Example API", .version = "1.0.0"},
+   .specTarget = "/api/openapi.json",
+   .docsTarget = "/api/docs",
+});
+```
+
+Example targets:
+
+| Target | Description |
+| --- | --- |
+| `c2server_payload_server` | Original payload server example without Swagger UI. |
+| `c2server_swagger_server` | Documented API example with `/docs` and `/openapi.json`. |
+| `c2server_hello_world` | Minimal single-route HTTP server. |
+| `c2server_middleware_server` | Request ID, security headers, CORS, and rate-limit example. |
+
+Examples load `config.json` from their working directory by default. Pass a custom path as the first argument:
 
 ```sh
-./build/app/c2server ./config/config.json
+./build/examples/c2server_swagger_server ./config/config.json
 ```
