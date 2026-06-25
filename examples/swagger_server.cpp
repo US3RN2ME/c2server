@@ -19,35 +19,127 @@ int main(int argc, char* argv[]) {
           .use(c2server::middleware::securityHeaders())
           .use(c2server::middleware::cors());
 
-      auto healthDoc = c2server::RouteDoc{
-          .summary = "Health check",
-          .tags = {"system"},
-          .responses = {{.status = 200, .description = "Service status", .contentType = "application/json"}},
-      };
       router->get(
           "/health",
           [](const c2server::HttpRequest&) {
              return c2server::jsonOk({{"status", "ok"}});
           },
-          std::move(healthDoc));
+          c2server::RouteDoc{
+              .summary = "Health check",
+              .tags = {"system"},
+              .responses =
+                  {
+                      {.status = 200, .description = "Service is healthy", .contentType = "application/json"},
+                  },
+          });
 
-      auto echoDoc = c2server::RouteDoc{
-          .summary = "Echo request body",
-          .tags = {"examples"},
-          .requestBody =
-              c2server::RequestBodyDoc{
-                  .description = "Text to echo back.",
-                  .contentType = "text/plain",
-                  .required = true,
-              },
-          .responses = {{.status = 200, .description = "Echoed text", .contentType = "text/plain"}},
-      };
+      router->get(
+          "/version",
+          [](const c2server::HttpRequest&) {
+             return c2server::jsonOk({
+                 {"version", std::string{c2server::kVersion}},
+                 {"major", std::to_string(c2server::kVersionMajor)},
+                 {"minor", std::to_string(c2server::kVersionMinor)},
+                 {"patch", std::to_string(c2server::kVersionPatch)},
+             });
+          },
+          c2server::RouteDoc{
+              .summary = "Server version",
+              .description = "Returns the compiled version components.",
+              .tags = {"system"},
+              .responses =
+                  {
+                      {.status = 200, .description = "Version object", .contentType = "application/json"},
+                  },
+          });
+
       router->post(
           "/echo",
           [](const c2server::HttpRequest& req) {
              return c2server::ok(req.body, "text/plain");
           },
-          std::move(echoDoc));
+          c2server::RouteDoc{
+              .summary = "Echo request body",
+              .tags = {"examples"},
+              .requestBody =
+                  c2server::RequestBodyDoc{
+                      .description = "Text to echo back.",
+                      .contentType = "text/plain",
+                      .required = true,
+                  },
+              .responses =
+                  {
+                      {.status = 200, .description = "Echoed text", .contentType = "text/plain"},
+                  },
+          });
+
+      router->put(
+          "/items",
+          [](const c2server::HttpRequest& req) {
+             return c2server::jsonOk({{"replaced", req.body}});
+          },
+          c2server::RouteDoc{
+              .summary = "Replace item",
+              .tags = {"examples"},
+              .requestBody =
+                  c2server::RequestBodyDoc{
+                      .description = "New item content.",
+                      .contentType = "text/plain",
+                      .required = true,
+                  },
+              .responses =
+                  {
+                      {.status = 200, .description = "Item replaced", .contentType = "application/json"},
+                  },
+          });
+
+      router->patch(
+          "/items",
+          [](const c2server::HttpRequest& req) {
+             return c2server::jsonOk({{"patched", req.body}});
+          },
+          c2server::RouteDoc{
+              .summary = "Patch item",
+              .tags = {"examples"},
+              .requestBody =
+                  c2server::RequestBodyDoc{
+                      .description = "Fields to update.",
+                      .contentType = "text/plain",
+                      .required = true,
+                  },
+              .responses =
+                  {
+                      {.status = 200, .description = "Item patched", .contentType = "application/json"},
+                  },
+          });
+
+      router->delete_(
+          "/items",
+          [](const c2server::HttpRequest&) {
+             return c2server::jsonOk({{"status", "deleted"}});
+          },
+          c2server::RouteDoc{
+              .summary = "Delete item",
+              .tags = {"examples"},
+              .responses =
+                  {
+                      {.status = 200, .description = "Item deleted", .contentType = "application/json"},
+                  },
+          });
+
+      router->head(
+          "/items",
+          [](const c2server::HttpRequest&) {
+             c2server::HttpResponse resp;
+             resp.status = 200;
+             resp.headers["X-Count"] = "0";
+             return resp;
+          },
+          c2server::RouteDoc{
+              .summary = "Item count (HEAD)",
+              .tags = {"examples"},
+              .responses = {{.status = 200, .description = "X-Count header contains item count"}},
+          });
 
       router->serveOpenApi({
           .info =
