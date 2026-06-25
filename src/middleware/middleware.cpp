@@ -56,6 +56,12 @@ namespace c2server::middleware {
          return std::format("{:x}-{:x}", now, sequence.fetch_add(1, std::memory_order_relaxed));
       }
 
+      void setHeaderIfAbsent(HttpResponse& response, std::string name, std::string value) {
+         if (header(response.headers, name).empty()) {
+            setHeader(response, std::move(name), std::move(value));
+         }
+      }
+
       struct RateLimitEntry {
          std::size_t requests = 0;
          std::chrono::steady_clock::time_point resetAt;
@@ -91,11 +97,11 @@ namespace c2server::middleware {
    Middleware securityHeaders() {
       return [](const HttpRequest& req, const Next& next) {
          auto response = next(req);
-         setHeader(response, "X-Content-Type-Options", "nosniff");
-         setHeader(response, "X-Frame-Options", "DENY");
-         setHeader(response, "Referrer-Policy", "no-referrer");
-         setHeader(response, "Cross-Origin-Resource-Policy", "same-origin");
-         setHeader(response, "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+         setHeaderIfAbsent(response, "X-Content-Type-Options", "nosniff");
+         setHeaderIfAbsent(response, "X-Frame-Options", "DENY");
+         setHeaderIfAbsent(response, "Referrer-Policy", "no-referrer");
+         setHeaderIfAbsent(response, "Cross-Origin-Resource-Policy", "same-origin");
+         setHeaderIfAbsent(response, "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
          return response;
       };
    }
